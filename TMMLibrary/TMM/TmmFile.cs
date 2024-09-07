@@ -86,7 +86,10 @@ public class TmmHeader : IEncode
 public class ModelInfo : IEncode
 {
     public ushort[] Unknown1 { get; set; } = []; // always 2, 2, 6, 14 / 7, 2, 16, 17
-    public ushort[] Unknown2 { get; set; } = [];
+    public ushort[] Unknown2 = [];
+    public int SomeCount1;
+    public int MaterialCount;
+    public int SubmaterialCount;
     public int BoneCount { get; set; }
     public uint UnknownCount { get; set; }
     public int AttachPointCount { get; set; }
@@ -96,28 +99,34 @@ public class ModelInfo : IEncode
     public uint IndexOffset { get; set; }
     public uint IndexOffset2 { get; set; } // Same as indexoffset, not sure why exists
     public uint Unknown3 { get; set; } // probably an offset of some sort
-    public uint UnknownData1Count { get; set; }
-    public uint UnknownData1Offset { get; set; }
-    public uint[] Unknown4 { get; set; } = []; // size of array is 4
-    public uint UnknownData2Count { get; set; }
-    public uint UnknownData2Offset { get; set; }
+    public uint BoneWeightsOffset { get; set; }
+    public uint BoneWeightsByteCount { get; set; }
+    public uint[] Unknown4 = []; // size of array is 4
+    public uint MaskDataOffset;
+    public uint MaskDataByteCount;
     // 0x34 bytes = 13 elements
     public float[] Unknown5 = [];
     public TmmAttachPoint[] AttachPoints = [];
     // 0x1c bytes = 7 elements, most are 0 but some have non-zero values that are probably not floats.
     public uint[] Unknown6 = [];
-    public string Material = "";
+    public uint[] Unknown7 = [];
+    public string[] Materials = [];
     // Appears directly after the material and always seems to be "default"
-    public string SDefault = "";
+    public string[] Submaterials = [];
     public Bone[] Bones = [];
-    public uint[] UnknownEnd = [];
+    public BoneFloats? BoneFloatData = null;
+    public uint BoneFooter;
+    public SuffixData? Suffix;
     
     public static ModelInfo Decode(BinaryReader br)
     {
-        var modelInfo = new ModelInfo
+        var model = new ModelInfo
         {
             Unknown1 = br.ReadUInt16Array(4),
-            Unknown2 = br.ReadUInt16Array(35),
+            Unknown2 = br.ReadUInt16Array(29),
+            SomeCount1 = br.ReadInt32(),
+            MaterialCount = br.ReadInt32(),
+            SubmaterialCount = br.ReadInt32(),
             BoneCount = br.ReadInt32(),
             UnknownCount = br.ReadUInt32(),
             AttachPointCount = br.ReadInt32(),
@@ -127,30 +136,49 @@ public class ModelInfo : IEncode
             IndexOffset = br.ReadUInt32(),
             IndexOffset2 = br.ReadUInt32(),
             Unknown3 = br.ReadUInt32(),
-            UnknownData1Count = br.ReadUInt32(),
-            UnknownData1Offset = br.ReadUInt32(),
+            BoneWeightsOffset = br.ReadUInt32(),
+            BoneWeightsByteCount = br.ReadUInt32(),
             Unknown4 = br.ReadUInt32Array(4),
-            UnknownData2Count = br.ReadUInt32(),
-            UnknownData2Offset = br.ReadUInt32()
+            MaskDataOffset = br.ReadUInt32(),
+            MaskDataByteCount = br.ReadUInt32(),
         };
-        
         // skip a byte to align. This is probably meaningful?
         br.ReadByte();
         // Another 0x34 bytes worth of floats
-        modelInfo.Unknown5 = br.ReadFloat32Array(0x34 / 4);
+        model.Unknown5 = br.ReadFloat32Array(0x34 / 4);
         // Read all attach points
-        modelInfo.AttachPoints = br.DecodeArray(modelInfo.AttachPointCount, TmmAttachPoint.Decode);
-        // 0x1C worth of int32, most are 0 but there are some values in there.
-        modelInfo.Unknown6 = br.ReadUInt32Array(0x1C / 4);
+        model.AttachPoints = br.DecodeArray(model.AttachPointCount, TmmAttachPoint.Decode);
+        // see tmm_file.hexpat for more details.
+        model.Unknown6 = br.ReadUInt32Array(4);
+        if (model.SomeCount1 == 2)
+        {
+            model.Unknown7 = br.ReadUInt32Array(6);
+        }
         // Now positioned right before the material name
-        modelInfo.Material = br.ReadTmString();
-        modelInfo.SDefault = br.ReadTmString();
+        model.Materials = br.DecodeArray(model.MaterialCount, IoExtensions.ReadTmString);
+        model.Submaterials = br.DecodeArray(model.SubmaterialCount, IoExtensions.ReadTmString);
         // Read all the bones, because the bones are important!
-        modelInfo.Bones = br.DecodeArray(modelInfo.BoneCount, Bone.Decode);
-        modelInfo.UnknownEnd = br.ReadUInt32Array(0x10 / 4); // 4 elements
-        DecodeException.ExpectEqualList<uint>(
-            typeof(ModelInfo), br.BaseStream.Position, [0, 0, 0x01585600, 0], modelInfo.UnknownEnd);
-        return modelInfo;
+        model.Bones = br.DecodeArray(model.BoneCount, Bone.Decode);
+        if (model.BoneCount > 0)
+        {
+            model.BoneFloatData = BoneFloats.Decode(br);
+        }
+        else
+        {
+            // No bones, so skip 4 bytes
+            br.ReadUInt32();
+        }
+        model.BoneFooter = br.ReadUInt32();
+        DecodeException.ExpectEqual<uint>(
+            typeof(ModelInfo), br.BaseStream.Position, 0x01585600, model.BoneFooter);
+        // Skip 3 bytes
+        br.ReadBytes(3);
+        var moreData = br.ReadBoolean();
+        if (moreData)
+        {
+            model.Suffix = SuffixData.Decode(br);
+        }
+        return model;
     }
 
     public void Encode(BinaryWriter bw)
@@ -166,18 +194,101 @@ public class ModelInfo : IEncode
         bw.Write(IndexOffset);
         bw.Write(IndexOffset2);
         bw.Write(Unknown3);
-        bw.Write(UnknownData1Count);
-        bw.Write(UnknownData1Offset);
+        bw.Write(BoneWeightsOffset);
+        bw.Write(BoneWeightsByteCount);
         bw.Write(Unknown4);
-        bw.Write(UnknownData2Count);
-        bw.Write(UnknownData2Offset);
+        bw.Write(MaskDataOffset);
+        bw.Write(MaskDataByteCount);
+        bw.Write((byte)0);
         bw.Write(Unknown5);
         bw.EncodeArray(AttachPoints);
         bw.Write(Unknown6);
-        bw.WriteTmString(Material);
-        bw.WriteTmString(SDefault);
+        if (SomeCount1 == 2)
+        {
+            bw.Write(Unknown7);
+        }
+        foreach (var v in Materials) bw.WriteTmString(v);
+        foreach (var v in Submaterials) bw.WriteTmString(v);
         bw.EncodeArray(Bones);
-        bw.Write(UnknownEnd);
+        if (BoneCount > 0)
+        {
+            BoneFloatData?.Encode(bw);
+        }
+        else
+        {
+            bw.Write((uint)0);
+        }
+        bw.Write(BoneFooter);
+        bw.WriteZeros(3);
+        if (Suffix != null)
+        {
+            bw.Write((byte)1);
+            Suffix.Encode(bw);
+        }
+        else
+        {
+            bw.Write((byte)0);
+        }
+    }
+}
+
+/// <summary>
+/// Not as good as Root Beer floats!
+/// </summary>
+public class BoneFloats : IEncode
+{
+    public Half[] Data0 = [];
+    public Half[] Data1 = [];
+    public Half[] Data2 = [];
+    public Half[] Data3 = [];
+
+    public static BoneFloats Decode(BinaryReader br)
+    {
+        var counts = br.ReadUInt16Array(4);
+        return new BoneFloats
+        {
+            Data0 = br.ReadFloat16Array(counts[0] * 4),
+            Data1 = br.ReadFloat16Array(counts[1] * 1),
+            Data2 = br.ReadFloat16Array(counts[2] * 16),
+            Data3 = br.ReadFloat16Array(counts[3] * 21),
+        };
+    }
+
+    public void Encode(BinaryWriter bw)
+    {
+        bw.Write((ushort)(Data0.Length / 4));
+        bw.Write((ushort)Data1.Length);
+        bw.Write((ushort)(Data2.Length / 16));
+        bw.Write((ushort)(Data3.Length / 21));
+        bw.Write(Data0);
+        bw.Write(Data1);
+        bw.Write(Data2);
+        bw.Write(Data3);
+    }
+}
+
+public class SuffixData : IEncode
+{
+    public ushort ConstVS;
+    public uint ByteCount;
+    public uint[] Data;
+
+    public static SuffixData Decode(BinaryReader br)
+    {
+        var myType = typeof(SuffixData);
+        var obj = new SuffixData();
+        obj.ConstVS = br.ReadUInt16();
+        DecodeException.ExpectEqual<ushort>(myType, br.BaseStream.Position, 0x5356, obj.ConstVS);
+        obj.ByteCount = br.ReadUInt32();
+        obj.Data = br.ReadUInt32Array((int)obj.ByteCount / 4);
+        return obj;
+    }
+
+    public void Encode(BinaryWriter bw)
+    {
+        bw.Write(ConstVS);
+        bw.Write(ByteCount);
+        bw.Write(Data);
     }
 }
 

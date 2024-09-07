@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework;
 using TMMViewer.Data.Render;
 using TMMViewer.ViewModels.MonoGameControls;
+using TMMViewer.Data;
 
 namespace TMMViewer.ViewModels
 {
@@ -37,7 +38,7 @@ namespace TMMViewer.ViewModels
 
         public override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.RasterizerState = RasterizerState.CullClockwise;
+            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
             _scene.Render(GraphicsDevice);
         }
     }

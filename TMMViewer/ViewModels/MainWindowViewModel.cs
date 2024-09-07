@@ -1,7 +1,10 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.IO;
+using System.Windows.Interop;
+using TMMViewer.Data.Render;
 using TMMViewer.Data.Services;
+using RenderMode = TMMViewer.Data.RenderMode;
 
 namespace TMMViewer.ViewModels
 {
@@ -9,11 +12,25 @@ namespace TMMViewer.ViewModels
     {
         private IDialogService _dialogService;
         private IModelIOService _modelIO;
+        private Scene _scene;
 
-        public MainWindowViewModel(IDialogService dialogService, IModelIOService modelIO)
+        public RenderMode[] RenderModes => Enum.GetValues<RenderMode>();
+
+        public RenderMode SelectedRenderMode
+        {
+            get => _scene.RenderMode;
+            set => _scene.RenderMode = value;
+        }
+
+        public MainWindowViewModel()
+        {
+        }
+
+        public MainWindowViewModel(IDialogService dialogService, IModelIOService modelIO, Scene scene)
         {
             _dialogService = dialogService;
             _modelIO = modelIO;
+            _scene = scene;
         }
 
         [RelayCommand]
@@ -35,6 +52,17 @@ namespace TMMViewer.ViewModels
             if (success)
             {
                 _modelIO.ExportModel(_modelPath, _modelExportMapping[Path.GetExtension(_modelPath)]);
+            }
+        }
+
+        [RelayCommand]
+        public void ExportModelDebug()
+        {
+            var _modelPath = Path.GetFileNameWithoutExtension(_modelIO.OpenedModelPath);
+            var success = _dialogService.GetSaveFilePath(ref _modelPath, ".tmm.data", "tmm.data files (.tmm.data)|*.tmm.data");
+            if (success)
+            {
+                _modelIO.ExportModelDebug(_modelPath);
             }
         }
 

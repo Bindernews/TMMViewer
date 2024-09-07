@@ -13,10 +13,7 @@ public static class IoExtensions
     public static ushort[] ReadUInt16Array(this BinaryReader br,  int v)
     {
         var array = new ushort[v];
-        for (var i = 0; i < v; i++)
-        {
-            array[i] = br.ReadUInt16();
-        }
+        for (var i = 0; i < v; i++) array[i] = br.ReadUInt16();
         return array;
     }
 
@@ -31,10 +28,7 @@ public static class IoExtensions
     public static uint[] ReadUInt32Array(this BinaryReader br, int v)
     {
         var array = new uint[v];
-        for (var i = 0; i < v; i++)
-        {
-            array[i] = br.ReadUInt32();
-        }
+        for (var i = 0; i < v; i++) array[i] = br.ReadUInt32();
         return array;
     }
 
@@ -49,10 +43,7 @@ public static class IoExtensions
     public static float[] ReadFloat32Array(this BinaryReader br, int count)
     {
         var array = new float[count];
-        for (var i = 0; i < count; i++)
-        {
-            array[i] = br.ReadSingle();
-        }
+        for (var i = 0; i < count; i++) array[i] = br.ReadSingle();
         return array;
     }
 
@@ -62,6 +53,23 @@ public static class IoExtensions
         {
             bw.Write(v);
         }
+    }
+
+    public static Half[] ReadFloat16Array(this BinaryReader br, int count)
+    {
+        var array = new Half[count];
+        for (var i = 0; i < count; i++) array[i] = br.ReadHalf();
+        return array;
+    }
+
+    public static void Write(this BinaryWriter bw, Half[] array)
+    {
+        foreach (var v in array) bw.Write(v);
+    }
+
+    public static void WriteZeros(this BinaryWriter bw, int byteCount)
+    {
+        for (var i = 0; i < byteCount; i++) bw.Write((byte)0);
     }
 
     /// <summary>
