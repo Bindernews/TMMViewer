@@ -10,7 +10,7 @@ public interface IEncode
 
 public static class IoExtensions
 {
-    public static ushort[] ReadUint16Array(this BinaryReader br,  int v)
+    public static ushort[] ReadUInt16Array(this BinaryReader br,  int v)
     {
         var array = new ushort[v];
         for (var i = 0; i < v; i++)
@@ -28,22 +28,12 @@ public static class IoExtensions
         }
     }
 
-    public static uint[] ReadUint32Array(this BinaryReader br, int v)
+    public static uint[] ReadUInt32Array(this BinaryReader br, int v)
     {
         var array = new uint[v];
         for (var i = 0; i < v; i++)
         {
             array[i] = br.ReadUInt32();
-        }
-        return array;
-    }
-
-    public static int[] ReadInt32Array(this BinaryReader br, int count)
-    {
-        var array = new int[count];
-        for (var i = 0; i < count; i++)
-        {
-            array[i] = br.ReadInt32();
         }
         return array;
     }

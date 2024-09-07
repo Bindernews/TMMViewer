@@ -73,7 +73,7 @@ public class TmmDataFile : IEncode
         var vertices = br.DecodeArray((int)modelInfo.VertexCount, TmmVertex.Decode);
 
         br.BaseStream.Seek(modelInfo.IndexOffset, SeekOrigin.Begin);
-        var indices = br.ReadUint16Array((int)modelInfo.IndexCount);
+        var indices = br.ReadUInt16Array((int)modelInfo.IndexCount);
 
         br.BaseStream.Seek(modelInfo.UnknownData1Offset, SeekOrigin.Begin);
         var unknown1 = br.ReadBytes((int)modelInfo.UnknownData1Count);

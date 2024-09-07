@@ -1,9 +1,9 @@
 ﻿namespace TMMLibrary.TMM;
 
-public class TmmFile
+public class TmmFile : IEncode
 {
-    public TmmHeader? Header { get; set; }
-    public ModelInfo[] ModelInfos { get; set; } = [];
+    public TmmHeader? Header;
+    public ModelInfo[] ModelInfos = [];
     
     public static TmmFile Decode(string filePath)
     {
@@ -17,23 +17,17 @@ public class TmmFile
         var header = TmmHeader.Decode(br);
         var modelInfo = br.DecodeArray((int)header.ModelCount, ModelInfo.Decode);
         DecodeException.ExpectEof(typeof(TmmFile), br.BaseStream);
-        TmmFile tmmFile = new()
+        return new TmmFile
         {
             Header = header,
             ModelInfos = modelInfo
         };
-        return tmmFile;
     }
-
-
-
+    
     public void Encode(BinaryWriter bw)
     {
         Header?.Encode(bw);
-        foreach (var it in ModelInfos)
-        {
-            it.Encode(bw);
-        }
+        bw.EncodeArray(ModelInfos);
     }
 }
 
@@ -111,7 +105,7 @@ public class ModelInfo : IEncode
     public float[] Unknown5 = [];
     public TmmAttachPoint[] AttachPoints = [];
     // 0x1c bytes = 7 elements, most are 0 but some have non-zero values that are probably not floats.
-    public int[] Unknown6 = [];
+    public uint[] Unknown6 = [];
     public string Material = "";
     // Appears directly after the material and always seems to be "default"
     public string SDefault = "";
@@ -122,8 +116,8 @@ public class ModelInfo : IEncode
     {
         var modelInfo = new ModelInfo
         {
-            Unknown1 = br.ReadUint16Array(4),
-            Unknown2 = br.ReadUint16Array(35),
+            Unknown1 = br.ReadUInt16Array(4),
+            Unknown2 = br.ReadUInt16Array(35),
             BoneCount = br.ReadInt32(),
             UnknownCount = br.ReadUInt32(),
             AttachPointCount = br.ReadInt32(),
@@ -135,7 +129,7 @@ public class ModelInfo : IEncode
             Unknown3 = br.ReadUInt32(),
             UnknownData1Count = br.ReadUInt32(),
             UnknownData1Offset = br.ReadUInt32(),
-            Unknown4 = br.ReadUint32Array(4),
+            Unknown4 = br.ReadUInt32Array(4),
             UnknownData2Count = br.ReadUInt32(),
             UnknownData2Offset = br.ReadUInt32()
         };
@@ -147,13 +141,13 @@ public class ModelInfo : IEncode
         // Read all attach points
         modelInfo.AttachPoints = br.DecodeArray(modelInfo.AttachPointCount, TmmAttachPoint.Decode);
         // 0x1C worth of int32, most are 0 but there are some values in there.
-        modelInfo.Unknown6 = br.ReadInt32Array(0x1C / 4);
+        modelInfo.Unknown6 = br.ReadUInt32Array(0x1C / 4);
         // Now positioned right before the material name
         modelInfo.Material = br.ReadTmString();
         modelInfo.SDefault = br.ReadTmString();
         // Read all the bones, because the bones are important!
         modelInfo.Bones = br.DecodeArray(modelInfo.BoneCount, Bone.Decode);
-        modelInfo.UnknownEnd = br.ReadUint32Array(0x10 / 4); // 4 elements
+        modelInfo.UnknownEnd = br.ReadUInt32Array(0x10 / 4); // 4 elements
         DecodeException.ExpectEqualList<uint>(
             typeof(ModelInfo), br.BaseStream.Position, [0, 0, 0x01585600, 0], modelInfo.UnknownEnd);
         return modelInfo;
@@ -177,7 +171,13 @@ public class ModelInfo : IEncode
         bw.Write(Unknown4);
         bw.Write(UnknownData2Count);
         bw.Write(UnknownData2Offset);
+        bw.Write(Unknown5);
         bw.EncodeArray(AttachPoints);
+        bw.Write(Unknown6);
+        bw.WriteTmString(Material);
+        bw.WriteTmString(SDefault);
+        bw.EncodeArray(Bones);
+        bw.Write(UnknownEnd);
     }
 }
 
@@ -196,22 +196,19 @@ public class TmmAttachPoint : IEncode
         
         // Expect 2x uint32 that are 0, then a flags uint32, then the name
         var zero0 = br.ReadUInt64();
-        if (zero0 != 0)
-        {
-            throw new DecodeException(myType, br.BaseStream.Position - 8, "expected 8 zero bytes");
-        }
+        DecodeException.ExpectEqual(myType, br.BaseStream.Position, zero0, (ulong)0);
         apoint.Flags = br.ReadInt32();
         apoint.Name1 = br.ReadTmString();
         // Start with 0x60 bytes of floats
         apoint.Floats1 = br.ReadFloat32Array(0x60 / 4);
         // Read 2x int32, should be 0
         var zero1 = br.ReadUInt64();
-        DecodeException.ExpectEqual(myType, br.BaseStream.Position - 8, zero1, (ulong)0);
+        DecodeException.ExpectEqual(myType, br.BaseStream.Position, zero1, (ulong)0);
         // Next value is always a TmString, but it may be zero-length.
         apoint.Name2 = br.ReadTmString();
         // Ends with [-1, 0, 0]
-        var tmp1 = br.ReadInt32Array(3);
-        DecodeException.ExpectEqualList(myType, br.BaseStream.Position, [-1, 0, 0], tmp1);
+        var tmp1 = br.ReadUInt32Array(3);
+        DecodeException.ExpectEqualList<uint>(myType, br.BaseStream.Position, [0xffffffff, 0, 0], tmp1);
         return apoint;
     }
 

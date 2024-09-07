@@ -25,10 +25,9 @@ public class DecodeException : IOException
     public static void ExpectEqual<T>(Type decoder, long pos, T expect, T actual)
         where T : IEquatable<T>
     {
-        if (!expect.Equals(actual))
-        {
-            throw new DecodeException(decoder, pos, $"expected {expect} found {actual}");
-        }
+        if (expect.Equals(actual)) return;
+        var realPos = pos - Marshal.SizeOf<T>();
+        throw new DecodeException(decoder, realPos, $"expected {expect} found {actual}");
     }
 
     /// <summary>
